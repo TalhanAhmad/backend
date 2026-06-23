@@ -38,6 +38,14 @@ app.use(express.urlencoded({ extended: true }));
 app.use(morgan("dev"));
 app.use("/uploads", express.static(path.join(__dirname, "uploads")));
 
+app.get("/", (_req, res) => {
+  res.json({
+    status: "ok",
+    app: "soket-io-chat",
+    health: "/api/health"
+  });
+});
+
 app.get("/api/health", (_req, res) => {
   res.json({ status: "ok", app: "soket-io-chat" });
 });
