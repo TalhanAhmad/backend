@@ -19,24 +19,26 @@ dotenv.config();
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const app = express();
-const server = http.createServer(app);
+const isVercel = Boolean(process.env.VERCEL);
 
 const clientUrl = process.env.CLIENT_URL || "http://localhost:5173";
-const io = new Server(server, {
-  cors: {
-    origin: clientUrl,
-    credentials: true
-  }
-});
-app.set("io", io);
-
-await connectDB();
+app.set("io", null);
 
 app.use(cors({ origin: clientUrl, credentials: true }));
 app.use(express.json({ limit: "2mb" }));
 app.use(express.urlencoded({ extended: true }));
 app.use(morgan("dev"));
 app.use("/uploads", express.static(path.join(__dirname, "uploads")));
+
+const requireDatabase = async (_req, res, next) => {
+  try {
+    await connectDB();
+    next();
+  } catch (error) {
+    console.error("MongoDB connection failed:", error.message);
+    res.status(503).json({ message: "Database connection failed" });
+  }
+};
 
 app.get("/", (_req, res) => {
   res.json({
@@ -50,25 +52,50 @@ app.get("/api/health", (_req, res) => {
   res.json({ status: "ok", app: "soket-io-chat" });
 });
 
+app.use("/api", requireDatabase);
 app.use("/api/auth", authRoutes);
 app.use("/api/users", userRoutes);
 app.use("/api/requests", requestRoutes);
 app.use("/api/conversations", conversationRoutes);
 app.use("/api/messages", messageRoutes);
 
-setupSocket(io);
+app.use((error, _req, res, _next) => {
+  console.error("Request failed:", error.message);
+  res.status(error.status || 500).json({ message: error.message || "Internal server error" });
+});
 
-const port = process.env.PORT || 5000;
-server.on("error", (error) => {
-  if (error.code === "EADDRINUSE") {
-    console.error(`Port ${port} is already in use. Stop the existing server or set a different PORT.`);
+if (!isVercel) {
+  const server = http.createServer(app);
+  const io = new Server(server, {
+    cors: {
+      origin: clientUrl,
+      credentials: true
+    }
+  });
+  app.set("io", io);
+  setupSocket(io);
+
+  const port = process.env.PORT || 5000;
+  server.on("error", (error) => {
+    if (error.code === "EADDRINUSE") {
+      console.error(`Port ${port} is already in use. Stop the existing server or set a different PORT.`);
+      process.exit(1);
+    }
+
+    console.error("Server failed to start:", error.message);
     process.exit(1);
-  }
+  });
 
-  console.error("Server failed to start:", error.message);
-  process.exit(1);
-});
+  connectDB()
+    .then(() => {
+      server.listen(port, () => {
+        console.log(`Server running on port ${port}`);
+      });
+    })
+    .catch((error) => {
+      console.error("MongoDB connection failed:", error.message);
+      process.exit(1);
+    });
+}
 
-server.listen(port, () => {
-  console.log(`Server running on port ${port}`);
-});
+export default app;
