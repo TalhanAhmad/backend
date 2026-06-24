@@ -21,10 +21,27 @@ const __dirname = path.dirname(__filename);
 const app = express();
 const isVercel = Boolean(process.env.VERCEL);
 
-const clientUrl = process.env.CLIENT_URL || "http://localhost:5173";
+const defaultClientUrls = ["http://localhost:5173"];
+const clientUrls = (process.env.CLIENT_URL || defaultClientUrls.join(","))
+  .split(",")
+  .map((url) => url.trim())
+  .filter(Boolean);
+
+const corsOptions = {
+  origin(origin, callback) {
+    if (!origin || clientUrls.includes(origin)) {
+      callback(null, true);
+      return;
+    }
+
+    callback(new Error(`Origin ${origin} is not allowed by CORS`));
+  },
+  credentials: true
+};
+
 app.set("io", null);
 
-app.use(cors({ origin: clientUrl, credentials: true }));
+app.use(cors(corsOptions));
 app.use(express.json({ limit: "2mb" }));
 app.use(express.urlencoded({ extended: true }));
 app.use(morgan("dev"));
@@ -68,7 +85,7 @@ if (!isVercel) {
   const server = http.createServer(app);
   const io = new Server(server, {
     cors: {
-      origin: clientUrl,
+      origin: clientUrls,
       credentials: true
     }
   });
