@@ -30,7 +30,7 @@ const io = new Server(server, {
 });
 app.set("io", io);
 
-connectDB();
+await connectDB();
 
 app.use(cors({ origin: clientUrl, credentials: true }));
 app.use(express.json({ limit: "2mb" }));
@@ -59,6 +59,16 @@ app.use("/api/messages", messageRoutes);
 setupSocket(io);
 
 const port = process.env.PORT || 5000;
+server.on("error", (error) => {
+  if (error.code === "EADDRINUSE") {
+    console.error(`Port ${port} is already in use. Stop the existing server or set a different PORT.`);
+    process.exit(1);
+  }
+
+  console.error("Server failed to start:", error.message);
+  process.exit(1);
+});
+
 server.listen(port, () => {
   console.log(`Server running on port ${port}`);
 });
