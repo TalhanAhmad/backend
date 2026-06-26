@@ -1,9 +1,8 @@
 # Soket.io Chat Backend
 
-## Environment
+## files
 
 Create a `.env` file from `.env.example` and set these values before running or deploying the server:
-
 ```env
 PORT=5000
 MONGO_URI=mongodb+srv://<username>:<password>@<cluster-host>/<database-name>?retryWrites=true&w=majority
